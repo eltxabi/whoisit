@@ -1,0 +1,24 @@
+*{
+	margin: 0;
+}
+
+body{
+	background-color:rgb(228, 235, 239);
+}
+
+#main{
+	background-color: yellow;
+	position: absolute;
+	top:20px;
+	left:20px;
+	z-index: 10;
+}
+
+#map{
+
+	border-radius: 0.4em;
+	box-shadow: 0.2em 0.2em 0.5em #888888;
+	height: 600px;
+	
+}
+
