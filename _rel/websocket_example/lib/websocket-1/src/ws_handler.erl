@@ -44,10 +44,12 @@ websocket_handle({text, Msg}, Req, State) ->
 	     Collection = <<"test">>,
 	     {ok, Connection} = db_driver:conectar(),
 	     db_driver:actualizar_position(Connection, Collection,State#state.user, Lat, Lng, Dist/6371),
-	     {ok,Send_lst}=db_driver:find_senders(Connection, Collection, Lat, Lng, Dist/6371),
-	    Send = list_to_binary(encode({array,json_followers(Send_lst)})),
+	     {ok,Follow_lst}=db_driver:find_followers(Connection, Collection, Lat, Lng, Dist/6371),
+	    Follow = list_to_binary(encode({array,json_followers(Follow_lst)})),
+	    {ok,Send_lst}=db_driver:find_senders(Connection, Collection, Lat, Lng),
+		io:format("Sendlist :~w ~n",[Send_lst]),
 	     New_State = State#state{pos=#position{lat=Lat,lng=Lng,dist=Dist}},	
-	     {reply,{text,Send}, Req, New_State}	
+	     {reply,{text,Follow}, Req, New_State}	
 	   end;
 	Other ->
 	   io:format("other :~s ~n",[Other])
