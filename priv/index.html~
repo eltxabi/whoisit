@@ -83,8 +83,11 @@
 	    lng=objPosicion.coords.longitude;
  	    lat=objPosicion.coords.latitude;
 	    dist=10;
-	    savePositionCookies(lat,lng,dist);	
-	    draw_position(lat,lng,dist);
+            if (lat!=NaN){
+	      savePositionCookies(lat,lng,dist);	
+	      draw_position(lat,lng,dist);
+ 	      send_position(lat,lng,dist);
+            }    
         },function(objError){
 	    lat = parseFloat(getCookie("lat"));		
  	    lng = parseFloat(getCookie("lng"));		
@@ -206,7 +209,7 @@ function getCookie(cname) {
 	var json = JSON.parse(evt.data);
 	for (var i in json){
 		alert(json[i].loc.coordinates[0]+","+json[i].loc.coordinates[1]);
-		drawMarker(json[i].loc.coordinates[1],json[i].loc.coordinates[0],json[i].user);
+		drawMarker(json[i].loc.coordinates[1],json[i].loc.coordinates[0],json[i].erl_pid);
 		drawCircle(json[i].loc.coordinates[1],json[i].loc.coordinates[0],json[i].dist,"blue")
 	}
       };  
@@ -252,9 +255,9 @@ function getCookie(cname) {
 
 function drawMarker(lat,lng,user){
 		$("#map").gmap3({
-				//clear:{
-				//	tag:["selected"]
-				//},
+				clear:{
+					tag:["selected"]
+				},
 				marker:{
 					latLng:[lat,lng],
 					tag:"selected",
@@ -271,16 +274,16 @@ function drawMarker(lat,lng,user){
 		});
 	}
 	function drawCircle(lat,lng,rad,color){
-		Circle = new google.maps.Circle({
+		/*Circle = new google.maps.Circle({
 			map:$("#map").gmap3('get'),
 			tag:["circle"],
-			center: [lat, lng],
+			center: {lat:lat, lng:lng},
 			radius : parseFloat(rad)*1000,	
 			fillColor : color,
       			strokeColor : color
 				
-		});
-		/*$("#map").gmap3({
+		});*/
+		$("#map").gmap3({
 				clear:{
 					tag:["circle"]
 				},
@@ -293,7 +296,7 @@ function drawMarker(lat,lng,user){
       						strokeColor : color
 					}
 				}
-		});*/
+		});
 	}
 
 	function center_map(lat,lng){
