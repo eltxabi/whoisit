@@ -42,7 +42,10 @@ websocket_handle({text, Msg}, Req, State) ->
 	     {reply, {text, << Msg/binary >>}, Req, State};
 	    <<"position">> ->
 	     {struct,[{_,Lat},{_,Lng},{_,Dist}]}=Value,
+	     New_State = State#state{erl_pid=binary_to_list(term_to_binary(self())) ,pos=#position{lat=Lat,lng=Lng,dist=Dist}},
 	     Collection = <<"test">>,
+	     lager:info("Posicion recibida :~s ~s ~s ~n ~n",[Lat,Lng,Dist]),
+	     lager:info("PID :~w ~n ~n",[term_to_binary(self())]),
 	     {ok, Connection} = db_driver:conectar(),
              db_driver:actualizar_position(Connection, Collection, binary_to_list(term_to_binary(self())), Lat, Lng, Dist/6371),
              {ok,Senders_lst}=db_driver:find_senders(Connection, Collection, Lat, Lng, Dist/6371),
@@ -51,13 +54,15 @@ websocket_handle({text, Msg}, Req, State) ->
 		_ -> list_to_binary(encode({array,json_senders(Senders_lst)}))
 	    end,
             %aviso a los otros ue me envien sus mensjes
-            foreach(fun(H) -> {_,Erl_pid,_,{_,_,_,[_,_]},_,_} = H,  binary_to_term(list_to_binary(Erl_pid)) ! {add_follower, H} end, Senders_lst),
+	    lager:info("Senders :~s ~n ~n",[Senders]),
+	    Me = {<<"erl_pid">>,self(),<<"loc">>,{<<"type">>,<<"Point">>,<<"coordinates">>,[New_State#state.pos#position.lat,New_State#state.pos#position.lng]},<<"dist">>,New_State#state.pos#position.dist},	
+            lager:info("Me :~w ~n ~n",[Me]),
+	    foreach(fun(H) -> {_,Erl_pid,_,{_,_,_,[_,_]},_,_} = H,  binary_to_term(list_to_binary(Erl_pid)) ! {add_follower, Me} end, Senders_lst),
 
             {ok,Followers_lst}=db_driver:find_followers(Connection, Collection, Lat, Lng),
-		io:format("Followerslist :~w ~n",[Followers_lst]),
-	     New_State = State#state{pos=#position{lat=Lat,lng=Lng,dist=Dist},followers=Followers_lst},	
-             io:format("PID :~w ~n",[term_to_binary(self())]),
-	     {reply,{text,Senders}, Req, New_State}	
+		lager:info("Followerslist :~w ~n ~n",[Followers_lst]),
+	     New_State2 = New_State#state{followers=Followers_lst},	
+             {reply,{text,Senders}, Req, New_State2}	
 	   end;
 	Other ->
 	   io:format("other :~s ~n",[Other])
@@ -69,6 +74,7 @@ websocket_handle(_Data, Req, State) ->
 	{ok, Req, State}.
 
 websocket_info({text, Msg, erl_pid, Erl_pid, pos, Position}, Req, State) ->
+	lager:info("Recibido mensje: :~w ~n",[Msg]),
         %Comprobar si es para mi
         V= validate_distance(Position#position.lat,Position#position.lng,State#state.pos#position.lat,State#state.pos#position.lng,State#state.pos#position.dist),
         if V==true -> validate_message(Msg,Req, State);
@@ -79,12 +85,14 @@ websocket_info({text, Msg, erl_pid, Erl_pid, pos, Position}, Req, State) ->
 
 
 websocket_info({add_follower, H}, Req, State) ->
-        {_,_,_,{_,_,_,[Lat1,Lng1]},_,Dist} = H,
+	lager:info("add_follower PID: :~w ~n ~n",[term_to_binary(self())]),
+	{_,_,_,{_,_,_,[Lng1,Lat1]},_,Dist} = H,
         V= validate_distance(Lat1,Lng1,State#state.pos#position.lat,State#state.pos#position.lng,Dist),
         New_State = if V==true -> State#state{followers=State#state.followers ++ [H]};
           V==false ->
                State   
         end, 
+	lager:info("follower list of PID: :~w is: ~w ~n ~n",[term_to_binary(self()),New_State#state.followers]),
         {ok, Req,New_State};  
 
 websocket_info({del_follower, Erl_pid}, Req, State) ->
@@ -127,7 +135,10 @@ foreach(_, []) ->
     ok.
 
 validate_distance(Lat1,Lng1,Lat2,Lng2,Dist) ->
-    Dist >= 6378.137 * math:acos(  math:cos( Lat1 ) *  math:cos( Lat2 ) *  math:cos( Lng2 - Lng1 ) +  math:sin( Lat1 ) *  math:sin( Lat2 ) ). 
+    D = math:acos(  math:cos( Lat1 ) *  math:cos( Lat2 ) *  math:cos( Lng2 - Lng1 ) +  math:sin( Lat1 ) *  math:sin( Lat2 ) ),
+    lager:info("Lat1: ~w,Lng1: ~w,Lat2: ~w,Lng2: ~w,   ~n",[Lat1,Lng1,Lat2,Lng2]), 
+    lager:info("validate distance D=~w , Dist=~w  ~n",[D,Dist]),
+    Dist >=math:acos(  math:cos( Lat1 ) *  math:cos( Lat2 ) *  math:cos( Lng2 - Lng1 ) +  math:sin( Lat1 ) *  math:sin( Lat2 ) ). 
 
 
 

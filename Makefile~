@@ -1,4 +1,4 @@
 PROJECT = websocket
 DEPS = cowboy
 
-include ../../erlang.mk
+include erlang.mk

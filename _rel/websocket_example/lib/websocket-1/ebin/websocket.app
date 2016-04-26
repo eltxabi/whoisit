@@ -8,7 +8,8 @@
 	{applications, [
 		kernel,
 		stdlib,
-		cowboy
+		cowboy,
+		lager
 	]},
 	{mod, {websocket_app, []}},
 	{env, []}

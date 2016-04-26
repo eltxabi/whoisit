@@ -22,7 +22,7 @@ actualizar_position(Connection, Collection, Erl_pid, Lat, Lng, Dist) ->
 
 find_senders(Connection, Collection, Lat, Lng, Dist) ->
 	%Selector = {{<<"loc">> , '$near' , { '$geometry', { 'type', <<"Point">>, 'coordinates', [Lat, Lng] } , '$maxDistance', Dist} }},
-	Selector = {<<"loc">> , {'$geoWithin' , { '$centerSphere', [[Lng, Lat], Dist]} }, <<"erl_pid">>,{'$ne',pid_to_list(self())}},
+	Selector = {<<"loc">> , {'$geoWithin' , { '$centerSphere', [[Lng, Lat], Dist]} }, <<"erl_pid">>,{'$ne',binary_to_list(term_to_binary(self()))}},
 	Cursor = mongo:find(Connection, Collection, Selector, {<<"_id">>,false, <<"erl_pid">>, true,<<"loc">>,true,<<"dist">>,true}),
 	Result = mc_cursor:rest(Cursor),
         %io:format("other :~w ~n",[Result]),
@@ -31,12 +31,12 @@ find_senders(Connection, Collection, Lat, Lng, Dist) ->
 	{ok , Result}.
 
 find_followers(Connection, Collection, Lat, Lng) ->
-	Selector = {<<"square">> , {'$geoIntersects' , {'$geometry', { 'type', <<"Point">>, 'coordinates', [Lng,Lat] }}}},
+	Selector = {<<"square">> , {'$geoIntersects' , {'$geometry', { 'type', <<"Point">>, 'coordinates', [Lng,Lat] }}},<<"erl_pid">>,{'$ne',binary_to_list(term_to_binary(self()))}},
 	Cursor = mongo:find(Connection, Collection, Selector, {<<"_id">>,false, <<"erl_pid">>, true,<<"loc">>,true,<<"dist">>,true}),
 	Result = mc_cursor:rest(Cursor),
-        io:format("other :~w ~n",[Result]),
+        %io:format("other :~w ~n",[Result]),
 	mc_cursor:close(Cursor),
-	io:format("Selector :~w ~n",[Selector]),
+	%io:format("Selector :~w ~n",[Selector]),
 	{ok , Result}.
 
 	 

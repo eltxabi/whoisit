@@ -2,8 +2,12 @@
          {erts,"5.10.3"},
          [{kernel,"2.16.3"},
           {stdlib,"1.19.3"},
+          {syntax_tools,"1.6.11"},
+          {compiler,"4.9.2"},
           {ranch,"1.0.0"},
           {crypto,"3.0"},
+          {goldrush,"0.1.8"},
           {cowlib,"1.0.0"},
           {cowboy,"1.0.0"},
+          {lager,"3.2.0"},
           {websocket,"1"}]}. 
