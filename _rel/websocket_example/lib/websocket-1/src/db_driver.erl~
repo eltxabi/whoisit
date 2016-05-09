@@ -17,6 +17,7 @@ insertar(Connection, Collection, Data) ->
 	mongo:insert(Connection, Collection, Data).
 
 actualizar_position(Connection, Collection, Erl_pid, Lat, Lng, Dist) ->
+        
 	Command = {<<"$set">>,{<<"loc">>,{<<"type">>,<<"Point">>,<<"coordinates">>,[Lng,Lat]},<<"dist">>,Dist,<<"square">>,{<<"type">>,<<"Polygon">>,<<"coordinates">>,[[[Lng-Dist,Lat-Dist],[Lng-Dist,Lat+Dist],[Lng+Dist,Lat+Dist],[Lng+Dist,Lat-Dist],[Lng-Dist,Lat-Dist]]]}}},
 	mongo:update(Connection, Collection,{<<"erl_pid">>,Erl_pid}, Command, true).
 
@@ -31,7 +32,8 @@ find_senders(Connection, Collection, Lat, Lng, Dist) ->
 	{ok , Result}.
 
 find_followers(Connection, Collection, Lat, Lng) ->
-	Selector = {<<"square">> , {'$geoIntersects' , {'$geometry', { 'type', <<"Point">>, 'coordinates', [Lng,Lat] }}}},
+	Selector = {<<"square">> , {'$geoIntersects' , {'$geometry', { 'type', <<"Point">>, 'coordinates', [Lng,Lat] }}},<<"erl_pid">>,{'$ne',binary_to_list(term_to_binary(self()))}},
+        lager:info("Selector followers :~s ~n ~n",[Selector]),
 	Cursor = mongo:find(Connection, Collection, Selector, {<<"_id">>,false, <<"erl_pid">>, true,<<"loc">>,true,<<"dist">>,true}),
 	Result = mc_cursor:rest(Cursor),
         %io:format("other :~w ~n",[Result]),

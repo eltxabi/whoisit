@@ -10,6 +10,7 @@
       
       var websocket,user,lat,lng,dist;
       var red_icon="http://maps.google.com/mapfiles/ms/icons/red-dot.png";
+      var blue_icon="http://maps.google.com/mapfiles/ms/icons/blue-dot.png";
 
       $(document).ready(init);
       
@@ -26,6 +27,8 @@
 	      alert("Esperando para conectar");
               deleteCircles("red");
               deleteCircles("blue"); 
+              deleteMarkers(red_icon);
+              deleteMarkers(blue_icon);
 	      select_position();
 	      user=getCookie("user");
           };
@@ -36,12 +39,13 @@
 	$("#distance_range").change(function(){
 		$("#distance").text($(this).val()+" km");
 		dist=parseFloat($("#distance_range").val());
-		//alert("changedistance:"+lat+","+lng+","+dist);
+		alert("changedistance:"+lat+","+lng+","+dist);
 		savePositionCookies(lat,lng,dist);
 		deleteCircles("red");
-                deleteCircles("blue"); 
-		send_position(lat,lng,dist);
-		drawCircle(lat,lng,dist,"red");
+              deleteCircles("blue"); 
+              deleteMarkers(red_icon);
+              deleteMarkers(blue_icon);
+		draw_position(lat,lng,dist);
 	});
       };
 
@@ -91,7 +95,7 @@
             if (lat!=NaN){
 	      savePositionCookies(lat,lng,dist);	
 	      draw_position(lat,lng,dist);
- 	      send_position(lat,lng,dist);
+ 	      
             }    
         },function(objError){
 	    lat = parseFloat(getCookie("lat"));		
@@ -99,7 +103,7 @@
  	    dist = parseFloat(getCookie("dist"));
 	    if ((lat!=NaN) ){
 		draw_position(lat,lng,dist);
-		send_position(lat,lng,dist);
+		
 	    }else{
 		alert("Seleccione su posicion");
 	    }	
@@ -211,14 +215,21 @@ function getCookie(cname) {
       };  
 
       function onMessage(evt) { 
-	//deleteCircles("blue");
-        showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
-	var json = JSON.parse(evt.data);
-	for (var i in json){
+	var json = JSON.parse(evt.data); 
+	if ("message" in json) {
+           }
+        else if ("senders" in json) {
+           deleteCircles("blue");
+           deleteMarkers(blue_icon);
+           showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
+           senders = json["senders"];
+	   for (var i in senders){
 		//alert("Hola "+json[i].loc.coordinates[0]+","+json[i].loc.coordinates[1]);
-		drawMarker(json[i].loc.coordinates[1],json[i].loc.coordinates[0],json[i].erl_pid);
-		drawCircle(json[i].loc.coordinates[1],json[i].loc.coordinates[0],json[i].dist,"blue")
-	}
+		drawMarker(senders[i].loc.coordinates[1],senders[i].loc.coordinates[0],senders[i].erl_pid,blue_icon);
+		drawCircle(senders[i].loc.coordinates[1],senders[i].loc.coordinates[0],senders[i].dist,"blue")
+	    }
+        }  
+	
       };  
 
       function onError(evt) {
@@ -247,6 +258,9 @@ function getCookie(cname) {
               click: function(map,event){
                  deleteCircles("red");
               deleteCircles("blue");
+                deleteMarkers(red_icon);
+              deleteMarkers(blue_icon);
+		
                 $("#location").text("Location: Lat: "+event.latLng.lat()+" Lon: "+event.latLng.lng());
 		$("#lat").val(event.latLng.lat());
 		$("#lng").val(event.latLng.lng());
@@ -254,7 +268,8 @@ function getCookie(cname) {
 		lng=event.latLng.lng();
 		dist=parseFloat($("#distance_range").val());
 		savePositionCookies(lat,lng,dist);
-		draw_position(lat,lng,dist);
+                draw_position(lat,lng,dist);
+		
               }
             }
           }
@@ -262,14 +277,11 @@ function getCookie(cname) {
 
   }
 
-function drawMarker(lat,lng,user){
+function drawMarker(lat,lng,user,icono){
 		$("#map").gmap3({
-				clear:{
-					tag:["selected"]
-				},
 				marker:{
 					latLng:[lat,lng],
-					tag:"selected",
+					tag:icono,
 					events:{
 					  click:function(){
 					    alert(user);
@@ -277,7 +289,7 @@ function drawMarker(lat,lng,user){
 					},
 					options:{
 						draggable:true,
-						icon: red_icon
+						icon: icono
 					}
 				}
 		});
@@ -288,6 +300,14 @@ function drawMarker(lat,lng,user){
 			clear:{
 				tag:[color]
 			}
+		});
+        }
+
+        function deleteMarkers(icono){
+                $("#map").gmap3({
+			clear:{
+				tag:[icono]
+			},
 		});
         }
 
@@ -335,7 +355,7 @@ function drawMarker(lat,lng,user){
 	function draw_position(lat,lng,dist){
 		if (dist==""){dist=10;}
 		send_position(lat,lng,dist);
-		drawMarker(lat,lng,user);
+		drawMarker(lat,lng,user,red_icon);
 		drawCircle(lat,lng,dist,"red");
 		center_map(lat,lng);
 	}
