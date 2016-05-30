@@ -92,39 +92,47 @@ websocket_info({text, Msg, erl_pid, Erl_pid, pos, Position}, Req, State) ->
 
 
 websocket_info({add_follower, H}, Req, State) ->
-	lager:info("add_follower PID: :~w ~n ~n",[term_to_binary(self())]),
+	%lager:info("add_follower PID: :~w ~n ~n",[term_to_binary(self())]),
 	{_,Erl_pid,_,{_,_,_,[Lat1,Lng1]},_,Dist} = H,
         Condition = fun(E) -> {_,Erl_pid_foll,_,{_,_,_,[_,_]},_,_} = E, Erl_pid == Erl_pid_foll end,
-	lager:info("Calculndo F: ~n ~n"),
-        F = follower_included(State#state.followers, Condition),
-        lager:info("Valor de F:~w ~n ~n",[F]), 
+	F = follower_included(State#state.followers, Condition),
+        %lager:info("Valor de F:~w ~n ~n",[F]), 
 	New_State = if F==false ->
 	        V = validate_distance(Lat1,Lng1,State#state.pos#position.lat,State#state.pos#position.lng,Dist/6371),
 		if V==true -> State#state{followers=State#state.followers ++ [H]};
-		 V==false ->
-               		State 
+		 V==false -> State 
 		end;	
-          F==true ->
-               State   
+          F==true -> State   
         end, 
 	lager:info("follower list of PID: :~w is: ~w ~n ~n",[term_to_binary(self()),New_State#state.followers]),
-        {ok, Req,New_State};  
+        {ok, Req,New_State}; 
+ 
+	
+    
 
 websocket_info({del_follower, Erl_pid}, Req, State) ->
         %eliminamos de la lista de followers
-        %Del_pid = binary_to_list(term_to_binary(Erl_pid)),
+        Del_pid = binary_to_list(term_to_binary(Erl_pid)),
         %lager:info("Eliminndo folowowers PID: ~w ~n ~n",[Del_pid]),
-        %New_followers = lists:filter(fun(X) -> {_,Del_pid2,_,{_,_,_,[_,_]},_,_} = X, Del_pid2=Del_pid end, State#state.followers),
-        %New_State = State#state{followers=New_followers},
-        lager:info("Elimindo list followers :~w ~n ~n", [Erl_pid]),
-        {ok, Req, State};
+        New_followers = lists:filter(fun(X) -> {_,Del_pid2,_,{_,_,_,[_,_]},_,_} = X, Del_pid2==Del_pid end, State#state.followers),
+        New_State = State#state{followers=New_followers},
+        %lager:info("Elimindo list followers :~w ~n ~n", [Erl_pid]),
+        {ok, Req, New_State};
+
+%websocket_info({draw_sender , Erl_pid, Pos}, Req, State) ->
+%        Sender=list_to_binary(encode({struct,[{senders, {array,[{struct,[{erl_pid,Erl_pid},{loc,{struct,[{type,<<"Point">>},{coordinates,[Pos#position.lat,Pos#position.lng]}]}},{dist,Pos#position.dist*6371}]}]}}]})),
+%         lager:info("Sender add :~w ~n ~n", [Sender]),
+%        {reply,{text,Sender}, Req, State};
 		
 websocket_info(_Info, Req, State) ->
 	io:format("mensajerecibidooooo :~n"),
 	{ok, Req, State}.
 
 websocket_terminate(_Reason, _Req, _State) ->
-	ok.
+        Collection = <<"test">>,
+        {ok, Connection} = db_driver:conectar(),
+	db_driver:deluser(Connection, Collection,binary_to_list(term_to_binary(self()))).
+	
 
 
 
@@ -168,7 +176,7 @@ validate_distance(Lat1,Lng1,Lat2,Lng2,Dist) ->
     Dist >= D. 
 
 follower_included(L, Condition) ->
-	lager:info("Lista L: ~w ~n ~n",[L]),	
+	%lager:info("Lista L: ~w ~n ~n",[L]),	
   case lists:dropwhile(fun(E) -> not Condition(E) end, L) of
     [] -> false;
     [_] -> true;

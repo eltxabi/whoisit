@@ -5,6 +5,7 @@
 -export([actualizar_position/6]).
 -export([find_followers/4]).
 -export([find_senders/5]).
+-export([del_user/3]).
 -export([find_one/3]).
 
 conectar() ->
@@ -34,7 +35,7 @@ find_senders(Connection, Collection, Lat, Lng, Dist) ->
 
 find_followers(Connection, Collection, Lat, Lng) ->
 	Selector = {<<"square">> , {'$geoIntersects' , {'$geometry', { 'type', <<"Point">>, 'coordinates', [Lng,Lat] }}},<<"erl_pid">>,{'$ne',binary_to_list(term_to_binary(self()))}},
-        lager:info("Selector followers :~s ~n ~n",[Selector]),
+        %lager:info("Selector followers :~s ~n ~n",[Selector]),
 	Cursor = mongo:find(Connection, Collection, Selector, {<<"_id">>,false, <<"erl_pid">>, true,<<"loc">>,true,<<"dist">>,true}),
 	Result = mc_cursor:rest(Cursor),
         %io:format("other :~w ~n",[Result]),
@@ -42,7 +43,9 @@ find_followers(Connection, Collection, Lat, Lng) ->
 	%io:format("Selector :~w ~n",[Selector]),
 	{ok , Result}.
 
-	 
+del_user(Connection, Collection, Erl_pid) ->
+        Selector = {<<"erl_pid">>,Erl_pid},
+        mongo:delete_one(Connection, Collection, Selector).   	 
 	
 find_one(Connection, Collection, {}) ->
 	mongo:find_one(Connection, Collection, {}).

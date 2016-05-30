@@ -220,8 +220,8 @@ function getCookie(cname) {
               showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
            }
         else if ("senders" in json) {
-           deleteCircles("blue");
-           deleteMarkers(blue_icon);
+           //deleteCircles("blue");
+           //deleteMarkers(blue_icon);
            showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
            senders = json["senders"];
 	   for (var i in senders){

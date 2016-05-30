@@ -217,6 +217,7 @@ function getCookie(cname) {
       function onMessage(evt) { 
 	var json = JSON.parse(evt.data); 
 	if ("message" in json) {
+              showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
            }
         else if ("senders" in json) {
            deleteCircles("blue");
