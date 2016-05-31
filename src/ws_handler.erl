@@ -42,6 +42,7 @@ websocket_handle({text, Msg}, Req, State) ->
              foreach(fun(H) -> {_,Erl_pid,_,{_,_,_,[_,_]},_,_} = H, lager:info("listtopid :~w ~n",[binary_to_term(list_to_binary(Erl_pid))]), binary_to_term(list_to_binary(Erl_pid)) ! {text , Msg, erl_pid, self(), pos, State#state.pos} end, State#state.followers),
 	     %{reply, {text, << Msg/binary >>}, Req, State};
 	     {ok, Req, State};
+
 	    <<"position">> ->
 	     {struct,[{_,Lat},{_,Lng},{_,Dist}]}=Value,
 	     New_State = State#state{erl_pid=binary_to_list(term_to_binary(self())) ,pos=#position{lat=Lat,lng=Lng,dist=Dist}},

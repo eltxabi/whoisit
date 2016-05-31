@@ -131,7 +131,7 @@ websocket_info(_Info, Req, State) ->
 websocket_terminate(_Reason, _Req, _State) ->
         Collection = <<"test">>,
         {ok, Connection} = db_driver:conectar(),
-	db_driver:deluser(Connection, Collection,binary_to_list(term_to_binary(self()))).
+	db_driver:del_user(Connection, Collection,binary_to_list(term_to_binary(self()))).
 	
 
 
