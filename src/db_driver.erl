@@ -3,6 +3,7 @@
 -export([conectar/0]).
 -export([insertar/3]).
 -export([actualizar_position/6]).
+-export([actualizar_bounds/7]).
 -export([find_followers/4]).
 -export([find_senders/5]).
 -export([del_user/3]).
@@ -16,6 +17,10 @@ conectar() ->
 
 insertar(Connection, Collection, Data) ->	
 	mongo:insert(Connection, Collection, Data).
+
+actualizar_bounds(Connection, Collection, Erl_pid,Lat_NE,Lng_NE,Lat_SW,Lng_SW) ->
+        Command = {<<"$set">>,{<<"bounds">>,[[Lat_NE,Lng_NE],[Lat_SW,Lng_SW]]}},
+        mongo:update(Connection, Collection,{<<"erl_pid">>,Erl_pid}, Command, true).
 
 actualizar_position(Connection, Collection, Erl_pid, Lat, Lng, Dist) ->
         Dlat = (Dist*6371)/110.574235,

@@ -1,0 +1,409 @@
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+    <title>Websocket client</title>
+    <link rel="stylesheet" type="text/css" href="static/base.css">
+    <script src="/static/jquery.min.js"></script>
+    <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false"></script>
+    <script type="text/javascript" src="/static/gmap3.min.js"></script>
+    <script type="text/javascript">
+      
+      var websocket,user,lat,lng,dist;
+      var red_icon="http://maps.google.com/mapfiles/ms/icons/red-dot.png";
+      var blue_icon="http://maps.google.com/mapfiles/ms/icons/blue-dot.png";
+
+      $(document).ready(init);
+      
+      function init() {
+	  create_map(40,-6);
+
+	  $('#server').val("ws://" + window.location.host + "/websocket");
+          if(!("WebSocket" in window)){  
+              $('#status').append('<p><span style="color: red;">websockets are not supported </span></p>');
+              $("#navigation").hide();  
+          } else {
+              $('#status').append('<p><span style="color: green;">websockets are supported </span></p>');
+              connect();
+	      alert("Esperando para conectar");
+              deleteCircles("red");
+              deleteCircles("blue"); 
+              deleteMarkers(red_icon);
+              deleteMarkers(blue_icon);
+	      select_position();
+	      user=getCookie("user");
+          };
+             // $("#connected").hide(); 	
+             // $("#content").hide(); 	
+
+ 	$(".send_data").bind( "click", sendData);
+	$("#distance_range").change(function(){
+		$("#distance").text($(this).val()+" km");
+		dist=parseFloat($("#distance_range").val());
+		alert("changedistance:"+lat+","+lng+","+dist);
+		savePositionCookies(lat,lng,dist);
+		deleteCircles("red");
+              deleteCircles("blue"); 
+              deleteMarkers(red_icon);
+              deleteMarkers(blue_icon);
+		draw_position(lat,lng,dist);
+	});
+      };
+
+      function connect()
+      {
+          wsHost = $("#server").val()
+          websocket = new WebSocket(wsHost);
+          showScreen('<b>Connecting to: ' +  wsHost + '</b>'); 
+          websocket.onopen = function(evt) { onOpen(evt) }; 
+          websocket.onclose = function(evt) { onClose(evt) }; 
+          websocket.onmessage = function(evt) { onMessage(evt) }; 
+          websocket.onerror = function(evt) { onError(evt) }; 
+      };  
+      
+      function disconnect() {
+          websocket.close();
+      }; 
+
+      function toggle_connection(){
+          if(websocket.readyState == websocket.OPEN){
+              disconnect();
+          } else {
+              connect();
+          };
+      };
+	
+
+      function send_position(lat,lng,dist){
+	if(websocket.readyState == websocket.OPEN){
+	     json={};
+	     json["position"]={"lat":lat,"lng":lng,"dist":dist};
+	     send_json(json);
+	     showScreen('sending position: ' + JSON.stringify(json));
+	 } else {
+               showScreen('websocket is not connected'); 
+         }
+      };	
+
+      function select_position(){
+	if(navigator.geolocation){
+        //intentamos obtener las coordenadas del usuario
+	navigator.geolocation.getCurrentPosition(function(objPosicion){
+            //almacenamos en variables la longitud y latitud
+	    lng=objPosicion.coords.longitude;
+ 	    lat=objPosicion.coords.latitude;
+	    dist=10;
+            if (lat!=NaN){
+	      savePositionCookies(lat,lng,dist);	
+	      draw_position(lat,lng,dist);
+ 	      
+            }    
+        },function(objError){
+	    lat = parseFloat(getCookie("lat"));		
+ 	    lng = parseFloat(getCookie("lng"));		
+ 	    dist = parseFloat(getCookie("dist"));
+	    if ((lat!=NaN) ){
+		draw_position(lat,lng,dist);
+		
+	    }else{
+		alert("Seleccione su posicion");
+	    }	
+            /*//manejamos los errores devueltos por Geolocation API
+            switch(objError.code){
+                //no se pudo obtener la informacion de la ubicacion
+                case objError.POSITION_UNAVAILABLE:
+                    alert('La información de su posición no está disponible.');
+                break;
+                //timeout al intentar obtener las coordenadas
+                case objError.TIMEOUT:
+                    alert('Tiempo de espera agotado.');
+                break;
+                //el usuario no desea mostrar la ubicacion
+                case objError.PERMISSION_DENIED:
+                    alert('Acceso denegado.');
+                break;
+                //errores desconocidos
+                case objError.UNKNOWN_ERROR:
+                    alert('Error desconocido.');
+                break;
+            }*/
+        });
+    }else{
+		alert('Su navegador no soporta Geolocation API de HTML5');
+	}
+      	
+			
+      }
+
+function savePositionCookies(lat,lng,dist){
+	setCookie("lat",lat,100);	
+        setCookie("lng",lng,100);
+	setCookie("dist",dist,100);
+}
+
+function setCookie(cname, cvalue, exdays) {
+    var d = new Date();
+    d.setTime(d.getTime() + (exdays*24*60*60*1000));
+    var expires = "expires="+d.toUTCString();
+    document.cookie = cname + "=" + cvalue + "; " + expires;
+} 
+
+
+function getCookie(cname) {
+    var name = cname + "=";
+    var ca = document.cookie.split(';');
+    for(var i=0; i<ca.length; i++) {
+        var c = ca[i];
+        while (c.charAt(0)==' ') c = c.substring(1);
+        if (c.indexOf(name) == 0) return c.substring(name.length,c.length);
+    }
+    return "";
+} 	
+
+      function send_json(x){
+          websocket.send(JSON.stringify(x));
+      } 
+
+      function sendUser(){ 
+	  if(websocket.readyState == websocket.OPEN){
+              txt = $("#user").val();
+	      send_json({'login':txt});
+	      showScreen('sending user: ' + JSON.stringify({'login':txt})); 
+          } else {
+               showScreen('websocket is not connected'); 
+          };
+      };
+
+     function sendData(){ 
+	  if(websocket.readyState == websocket.OPEN){
+	      key = $(this).parent().attr("id");
+	      if (key.localeCompare("position")==0){
+	        json={};
+		json[key]={"lat":parseFloat($("#lat").val()),"lng":parseFloat($("#lng").val()),"dist":parseFloat($("#distance_range").val())};
+		send_json(json);
+		showScreen('sending user: ' + JSON.stringify(json));
+	      } else {
+		      value = $(this).siblings(":first").val();
+		      json={};
+		      json[key] =value;
+		      send_json(json);
+			setCookie("user",value,100);
+		      showScreen('sending user: ' + JSON.stringify(json)); 
+	      }
+          } else {
+               showScreen('websocket is not connected'); 
+          };
+      };	
+
+      function sendTxt() {
+          if(websocket.readyState == websocket.OPEN){
+              txt = $("#send_txt").val();
+              websocket.send(txt);
+              showScreen('sending: ' + txt); 
+          } else {
+               showScreen('websocket is not connected'); 
+          };
+      };
+
+      function onOpen(evt) { 
+          showScreen('<span style="color: green;">CONNECTED </span>'); 
+          $("#connected").fadeIn('slow');
+          $("#content").fadeIn('slow');
+      };  
+
+      function onClose(evt) { 
+          showScreen('<span style="color: red;">DISCONNECTED </span>');
+      };  
+
+      function onMessage(evt) { 
+	var json = JSON.parse(evt.data); 
+	if ("message" in json) {
+              showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
+           }
+        else if ("senders" in json) {
+           //deleteCircles("blue");
+           //deleteMarkers(blue_icon);
+           showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
+           senders = json["senders"];
+	   for (var i in senders){
+		//alert("Hola "+json[i].loc.coordinates[0]+","+json[i].loc.coordinates[1]);
+		drawMarker(senders[i].loc.coordinates[1],senders[i].loc.coordinates[0],senders[i].erl_pid,blue_icon);
+		drawCircle(senders[i].loc.coordinates[1],senders[i].loc.coordinates[0],senders[i].dist,"blue")
+	    }
+        }  
+	
+      };  
+
+      function onError(evt) {
+          showScreen('<span style="color: red;">ERROR: ' + evt.data+ '</span>');
+		
+      };
+
+      function showScreen(txt) { 
+          $('#output').prepend('<p>' + txt + '</p>');
+      };
+
+      function clearScreen() 
+      { 
+          $('#output').html("");
+      };
+
+      function create_map(lati,long)
+      {
+	 
+	  $("#map").gmap3({
+          map:{
+            options:{
+              center:[lati,long],
+              zoom: 8
+            },events:{
+              click: function(map,event){
+                 deleteCircles("red");
+              deleteCircles("blue");
+                deleteMarkers(red_icon);
+              deleteMarkers(blue_icon);
+		
+                $("#location").text("Location: Lat: "+event.latLng.lat()+" Lon: "+event.latLng.lng());
+		$("#lat").val(event.latLng.lat());
+		$("#lng").val(event.latLng.lng());
+		lat=event.latLng.lat();
+		lng=event.latLng.lng();
+		dist=parseFloat($("#distance_range").val());
+		savePositionCookies(lat,lng,dist);
+                draw_position(lat,lng,dist);
+		
+              }
+            }
+          }
+        });
+
+  }
+
+function drawMarker(lat,lng,user,icono){
+		$("#map").gmap3({
+				marker:{
+					latLng:[lat,lng],
+					tag:icono,
+					events:{
+					  click:function(){
+					    alert(user);
+					  }
+					},
+					options:{
+						draggable:true,
+						icon: icono
+					}
+				}
+		});
+	}
+
+	function deleteCircles(color){
+                $("#map").gmap3({
+			clear:{
+				tag:[color]
+			}
+		});
+        }
+
+        function deleteMarkers(icono){
+                $("#map").gmap3({
+			clear:{
+				tag:[icono]
+			},
+		});
+        }
+
+	function drawCircle(lat,lng,rad,color){
+		$("#map").gmap3({
+			circle:{
+			        options:{
+				    center: [lat,lng],
+				    radius : parseFloat(rad)*1000,
+				    fillColor : color,
+				    strokeColor : color
+				  },
+				  tag: color
+				},
+		});
+		/*Circle = new google.maps.Circle({
+			map:$("#map").gmap3('get'),
+			tag:["circle"],
+			center: {lat:lat, lng:lng},
+			radius : parseFloat(rad)*1000,	
+			fillColor : color,
+      			strokeColor : color
+				
+		});*/
+		/*$("#map").gmap3({
+				clear:{
+					tag:["color"]
+				},
+				circle:{
+					tag:"color",
+					options:{
+						center: [lat, lng],
+      						radius : parseFloat(rad)*1000,
+						fillColor : color,
+      						strokeColor : color
+					}
+				}
+		});*/
+	}
+
+	function center_map(lat,lng){
+		$("#map").gmap3('get').setCenter(new google.maps.LatLng(lat, lng));
+	}
+
+	function draw_position(lat,lng,dist){
+		if (dist==""){dist=10;}
+		send_position(lat,lng,dist);
+		drawMarker(lat,lng,user,red_icon);
+		drawCircle(lat,lng,dist,"red");
+		center_map(lat,lng);
+	}
+
+    </script>
+  </head>
+
+  <body>
+    <div id="map"></div>
+    <div id="main">
+      <div id="header">
+        <h1>Websocket client</h1>
+        <div id="status"></div>
+      </div>
+
+
+      <div id="navigation">
+	 <p id="login">
+    		<input type='text' value=""></input>
+  		<button type="button" class="send_data">login</button>
+        </p>
+	<div id="position">
+	      <div id="distance">1 km</div>
+	      <input id="distance_range" type="range" min="1" max="100" step="1" value="1"></input> 
+              <div id="location">Location:</div>
+	      <input type="hidden" id="lat"></input> 
+	      <input type="hidden" id="lng"></input>
+              <button type="button" class="send_data">Send Position</button>
+	</div>
+
+        <p id="connecting">
+    <input type='text' id="server" value=""></input>
+  	<button type="button" onclick="toggle_connection()">connection</button>
+        </p>
+        <div id="connected">				
+  	<p id="message">
+  	  <input type='text' value=></input>
+  	  <button type="button" class="send_">send</button>
+  	</p>
+        </div>
+
+        <div id="content">					
+  	<button id="clear" onclick="clearScreen()" >Clear text</button>
+  	<div id="output"></div>
+        </div>
+
+      </div>
+    </div>
+  </body>
+</html> 

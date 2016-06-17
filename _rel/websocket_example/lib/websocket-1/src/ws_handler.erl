@@ -30,42 +30,47 @@ websocket_handle({text, Msg}, Req, State) ->
 	{struct, Data} ->
 	   [{Key,Value}|_] = Data, 
 	   case Key of
-	   % <<"login">> ->
-	    % Collection = <<"test">>,
-	    % {ok, Connection} = db_driver:conectar(),
-	    % db_driver:insertar(Connection, Collection,{user,Value}),
-	    % New_State = #state{user=Value},
-	    % {ok, Req, New_State};
-            	
 	    <<"message">> ->
              lager:info("Mensje llegndo a : ~w   ~n ~n",[State#state.followers]),
              foreach(fun(H) -> {_,Erl_pid,_,{_,_,_,[_,_]},_,_} = H, lager:info("listtopid :~w ~n",[binary_to_term(list_to_binary(Erl_pid))]), binary_to_term(list_to_binary(Erl_pid)) ! {text , Msg, erl_pid, self(), pos, State#state.pos} end, State#state.followers),
 	     %{reply, {text, << Msg/binary >>}, Req, State};
 	     {ok, Req, State};
+            <<"bounds">> ->
+             case Value of
+               {struct,[{_,Lat_NE},{_,Lng_NE},{_,Lat_SW},{_,Lng_SW}]} ->
+                  Collection = <<"test">>,
+	          lager:info("Bounds recibidos :~s ~s ~s ~s ~n ~n",[Lat_NE,Lng_NE,Lat_SW,Lng_SW]),
+	          {ok, Connection} = db_driver:conectar(), 
+                  db_driver:actualizar_bounds(Connection, Collection, binary_to_list(term_to_binary(self())),Lat_NE,Lng_NE,Lat_SW,Lng_SW),
+                  {ok, Req, State}; 
+               _ ->
+                  {ok, Req, State} 
+             end;  
 	    <<"position">> ->
-	     {struct,[{_,Lat},{_,Lng},{_,Dist}]}=Value,
-	     New_State = State#state{erl_pid=binary_to_list(term_to_binary(self())) ,pos=#position{lat=Lat,lng=Lng,dist=Dist}},
-	     Collection = <<"test">>,
-	     lager:info("Posicion recibida :~s ~s ~s ~n ~n",[Lat,Lng,Dist]),
-	     lager:info("PID :~w ~n ~n",[term_to_binary(self())]),
-	     {ok, Connection} = db_driver:conectar(),
-             db_driver:actualizar_position(Connection, Collection, binary_to_list(term_to_binary(self())), Lat, Lng, Dist/6371),
-             {ok,Senders_lst}=db_driver:find_senders(Connection, Collection, Lat, Lng, Dist/6371),
-            Senders = case Senders_lst of
-		[] -> [];
-		_ -> list_to_binary(encode({struct,[{senders, {array,json_senders(Senders_lst)}}]}))
-	    end,
-            %aviso a los otros ue me envien sus mensjes
-	    lager:info("Senders :~s ~n ~n",[Senders]),
-	    Me = {<<"erl_pid">>,New_State#state.erl_pid,<<"loc">>,{<<"type">>,<<"Point">>,<<"coordinates">>,[New_State#state.pos#position.lat,New_State#state.pos#position.lng]},<<"dist">>,New_State#state.pos#position.dist},	
-            lager:info("Me :~w ~n ~n",[Me]),
-	    foreach(fun(H) -> {_,Erl_pid,_,{_,_,_,[_,_]},_,_} = H,  binary_to_term(list_to_binary(Erl_pid)) ! {add_follower, Me} end, Senders_lst),
-
-            {ok,Followers_lst}=db_driver:find_followers(Connection, Collection, Lat, Lng),
-		lager:info("Followerslist :~w ~n ~n",[Followers_lst]),
-	     New_State2 = New_State#state{followers=Followers_lst},	
-             {reply,{text,Senders}, Req, New_State2}	
+             case Value of
+               {struct,[{_,Lat},{_,Lng},{_,Dist}]} ->
+	          New_State = State#state{erl_pid=binary_to_list(term_to_binary(self())) ,pos=#position{lat=Lat,lng=Lng,dist=Dist}},
+	          Collection = <<"test">>,
+	          lager:info("Posicion recibida :~s ~s ~s ~n ~n",[Lat,Lng,Dist]),
+	          lager:info("PID :~w ~n ~n",[term_to_binary(self())]),
+	          {ok, Connection} = db_driver:conectar(),
+                  %actualio mi posicion en BD
+                  db_driver:actualizar_position(Connection, Collection, binary_to_list(term_to_binary(self())), Lat, Lng, Dist/6371),
+                  {ok,Senders_lst}=db_driver:find_senders(Connection, Collection, Lat, Lng, Dist/6371),
+                  %aviso a los otros ue me envien sus mensjes
+	          Me = {<<"erl_pid">>,New_State#state.erl_pid,<<"loc">>,{<<"type">>,<<"Point">>,<<"coordinates">>,[New_State#state.pos#position.lat,New_State#state.pos#position.lng]},<<"dist">>,New_State#state.pos#position.dist},	
+                  lager:info("Me :~w ~n ~n",[Me]),
+	          foreach(fun(H) -> {_,Erl_pid,_,{_,_,_,[_,_]},_,_} = H,  binary_to_term(list_to_binary(Erl_pid)) ! {add_follower, Me} end, Senders_lst),
+                  %Calculo mis seguidores y los añado a mi lista  
+                  {ok,Followers_lst}=db_driver:find_followers(Connection, Collection, Lat, Lng),
+		  lager:info("Followerslist :~w ~n ~n",[Followers_lst]),
+	          New_State2 = New_State#state{followers=Followers_lst},	
+                  {reply,{text,<<"OK">>}, Req, New_State2};
+               _ ->
+                  {ok, Req, State}  
+	     end
 	   end;
+
 	Other ->
 	   io:format("other :~s ~n",[Other])
     	end;
@@ -145,16 +150,7 @@ websocket_terminate(_Reason, _Req, _State) ->
 %	{reply, {text, Msg}, Req, State}.
 
 
-json_senders(List_Senders) ->
-	parse_senders([],List_Senders).
 
-parse_senders(Senders,[H|T]) ->
-	{_,Erl_pid,_,{_,_,_,[Lat,Lng]},_,Dist} = H,
-	Parse = {struct,[{erl_pid,Erl_pid},{loc,{struct,[{type,<<"Point">>},{coordinates,[Lat,Lng]}]}},{dist,Dist*6371}]},
-	parse_senders([Parse|Senders],T);
-
-parse_senders(Senders,[]) ->
-	 Senders.
 
 foreach(F, [H|T]) ->
     F(H),

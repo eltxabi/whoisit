@@ -1,4 +1,4 @@
-%% script generated at {2016,5,30} {2,59,32}
+%% script generated at {2016,6,17} {0,42,58}
 {script,
     {"websocket_example","1"},
     [{preLoaded,

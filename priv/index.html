@@ -11,32 +11,40 @@
       var current_pos = new Array();
       var red_icon="http://maps.google.com/mapfiles/ms/icons/red-dot.png";  
       var pos_color = "red"; 
-      var init_dist = 10;  
+      var init_dist = 10; 
+      var timeout; 
+      var map,marker_position,circle_position;
  
       $(document).ready(init);
       
       function init() {
 	  create_map(40,-6);
+	              
+ 	  $(".send_data").bind( "click", sendData);
+          $("#distance_range").change( function() {
+                      $("#distance").text($(this).val()+" km");
+	              current_pos.dist=parseFloat($("#distance_range").val());
+                      send_position(current_pos);
+	              savePositionCookies(current_pos);
+                      draw_position(current_pos);
+          });
+	  
+      };
 
-	  $('#server').val("ws://" + window.location.host + "/websocket");
+
+//****************************websocket***************************
+
+      function make_connection(){
+console.log("make connection");
+         $('#server').val("ws://" + window.location.host + "/websocket");
           if(!("WebSocket" in window)){  
               $('#status').append('<p><span style="color: red;">websockets are not supported </span></p>');
               $("#navigation").hide();  
           } else {
               $('#status').append('<p><span style="color: green;">websockets are supported </span></p>');
               connect();
-	      //alert("Esperando para conectar");
-              //select_position();
-	      //user=getCookie("user");
-          };
-            
- 	  $(".send_data").bind( "click", sendData);
-          $("#distance_range").bind("change",change_distance());
-	  
-      };
-
-
-//****************************websocket***************************
+          }; 
+      }   
 
       function connect()
       {
@@ -60,13 +68,14 @@
           try { 
             select_position();
           } catch (excepcion) {
-             alert(excepcion.mensaje);  
+             console.log("excepcion: "+excepcion.message);  
           } 
-          send_position(current_pos);
+         
       };  
 
       function onClose(evt) { 
           showScreen('<span style="color: red;">DISCONNECTED </span>');
+          connect();
       };  
 
       function onMessage(evt) { 
@@ -81,11 +90,11 @@
            showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
            senders = json["senders"];
 	   for (var i in senders){
-		//alert("Hola "+json[i].loc.coordinates[0]+","+json[i].loc.coordinates[1]);
+		//console.log("Hola "+json[i].loc.coordinates[0]+","+json[i].loc.coordinates[1]);
 		drawMarker(senders[i].loc.coordinates[1],senders[i].loc.coordinates[0],senders[i].erl_pid,blue_icon);
 		drawCircle(senders[i].loc.coordinates[1],senders[i].loc.coordinates[0],senders[i].dist,"blue")
 	    }*/
-        }  
+          
 	
       };  
 
@@ -115,10 +124,24 @@
 	if(websocket.readyState == websocket.OPEN){
 	     json={};
 	     json["position"]={"lat":current_pos.lat,"lng":current_pos.lng,"dist":current_pos.dist};
+             
 	     send_json(json);
 	     showScreen('sending position: ' + JSON.stringify(json));
 	 } else {
                showScreen('websocket is not connected'); 
+         }
+      };
+
+      function send_bounds(bounds){
+        if (current_pos.lng){
+	   if(websocket.readyState == websocket.OPEN){
+	        json={};
+	        json["bounds"]={"lat_NE":bounds.getNorthEast().lat(),"lng_NE":bounds.getNorthEast().lng(),"lat_NE":bounds.getNorthEast().lat(),"lat_SW":bounds.getSouthWest().lat(),"lng_SW":bounds.getSouthWest().lng()};
+                send_json(json);
+	        showScreen('sending bounds: ' + JSON.stringify(json));
+	    } else {
+                  showScreen('websocket is not connected'); 
+            }
          }
       };
 
@@ -132,13 +155,13 @@
       function change_distance(){
          $("#distance").text($(this).val()+" km");
 	 current_pos.dist=parseFloat($("#distance_range").val());
-	 //alert("changedistance:"+lat+","+lng+","+dist);
          send_position(current_pos);
 	 savePositionCookies(current_pos);
          draw_position(current_pos);
       }
 
       function select_position(){
+console.log('Entrmos en select position');
 	if(navigator.geolocation){
         //intentamos obtener las coordenadas del usuario
 	    navigator.geolocation.getCurrentPosition(function(objPosicion){
@@ -146,47 +169,62 @@
 	    current_pos.lng=objPosicion.coords.longitude;
  	    current_pos.lat=objPosicion.coords.latitude;
 	    current_pos.dist=init_dist;
+console.log('Su navegador Geolocation');
             if (lat!=NaN){
+console.log('tenemos current position:'+current_pos.lat);
 	      savePositionCookies(current_pos);	
 	      draw_position(current_pos);
- 	    }    
+              console.log('posicion selecciond:'+current_pos.lat);
+              send_position(current_pos); 
+              change_bounds(); 
+ 	    }  
+             
         },function(objError){
+console.log('Error en select position');
             try {
-	       getCookiesPosition();	
+	       getCookiesPosition();
+               console.log('posicion selecciond:'+current_pos.lat);
+              send_position(current_pos); 
+              change_bounds(); 	
             } catch (excepcion) {
                throw excepcion; 
             }
-            /*//manejamos los errores devueltos por Geolocation API
+            //manejamos los errores devueltos por Geolocation API
             switch(objError.code){
                 //no se pudo obtener la informacion de la ubicacion
                 case objError.POSITION_UNAVAILABLE:
-                    alert('La información de su posición no está disponible.');
+                    console.log('La información de su posición no está disponible.');
                 break;
                 //timeout al intentar obtener las coordenadas
                 case objError.TIMEOUT:
-                    alert('Tiempo de espera agotado.');
+                    console.log('Tiempo de espera agotado.');
                 break;
                 //el usuario no desea mostrar la ubicacion
                 case objError.PERMISSION_DENIED:
-                    alert('Acceso denegado.');
+                    console.log('Acceso denegado.');
                 break;
                 //errores desconocidos
                 case objError.UNKNOWN_ERROR:
-                    alert('Error desconocido.');
+                    console.log('Error desconocido.');
                 break;
-            }*/
+            }
         });
       }else{
+console.log('Su navegador no soporta Geolocation API de HTML5');
             try {
 	       getCookiesPosition();	
+               console.log('posicion selecciond:'+current_pos.lat);
+              send_position(current_pos); 
+              change_bounds(); 
             } catch (excepcion) {
                throw excepcion; 
             }
-		//alert('Su navegador no soporta Geolocation API de HTML5');
+		//console.log('Su navegador no soporta Geolocation API de HTML5');
 	}
       }
 
       function getCookiesPosition(){
+ console.log("getcookiesposition");
           current_pos.lat = parseFloat(getCookie("lat"));		
  	  current_pos.lng = parseFloat(getCookie("lng"));		
  	  current_pos.dist = parseFloat(getCookie("dist"));
@@ -206,23 +244,34 @@
 //************************************map************************
        function create_map(lati,long)
        {
-	 
-	  $("#map").gmap3({
-          map:{
-            options:{
-              center:[lati,long],
+          map = new google.maps.Map(document.getElementById('map'), {
+              center: {lat: lati, lng: long},
               zoom: 8
-            },events:{
-              click: function(map,event){
-                 select_map_position(event.latLng.lat(),event.latLng.lng());
-              }
-            }
-          }
-        });
+          });
 
+
+          map.addListener('click', function(e) {
+             select_map_position(e.latLng.lat(),e.latLng.lng());
+          });
+
+          map.addListener('bounds_changed', function(event) {
+             window.clearTimeout(timeout);
+             timeout = window.setTimeout(function () {
+console.log("bounds_chnged:");
+             send_bounds(map.getBounds());
+             }, 500); 
+          });
+
+          google.maps.event.addListenerOnce(map, 'tilesloaded', make_connection());
+
+          
        }
-
-        function select_map_position(lat,lng){
+       
+       function change_bounds(){
+           send_bounds(map.getBounds());
+       }
+ 
+       function select_map_position(lat,lng){
             $("#location").text("Location: Lat: "+lat+" Lon: "+lng);
 		$("#lat").val(lat);
 		$("#lng").val(lng);
@@ -237,101 +286,77 @@
 	function draw_position(current_pos){
                 deletePosition();
 		drawCircle(current_pos,pos_color);
+                drawMarker(current_pos.lat,current_pos.lng,red_icon)
 		center_map(current_pos.lat,current_pos.lng);
 	}
 
         function drawMarker(lat,lng,icono){
-		$("#map").gmap3({
-				marker:{
-					latLng:[lat,lng],
-					tag:"position",
-					events:{
-					  click:function(){
-					    //alert(user);
-					  }
-					},
-					options:{
-						draggable:true,
-						icon: icono
-					}
-				}
-		});
-	}
+               marker_position = new google.maps.Marker({
+                  position:  {lat: lat, lng: lng},
+                  map: map,
+                  icon: icono
+               });
+        }
 
         function drawCircle(current_pos,color){
-		$("#map").gmap3({
-			circle:{
-			        options:{
-				    center: [current_pos.lat,current_pos.lng],
-				    radius : parseFloat(current_pos.dist)*1000,
-				    fillColor : color,
-				    strokeColor : color
-				  },
-				  tag:"position"
-				},
-		});
-		
+                circle_position = new google.maps.Circle({
+                   strokeColor: color,
+                   strokeOpacity: 0.8,
+                   strokeWeight: 2,
+                   fillColor: color,
+                   fillOpacity: 0.35,
+                   map: map,
+                   center: new google.maps.LatLng(current_pos.lat,current_pos.lng),
+                   radius: parseFloat(current_pos.dist)*1000
+                });
 	}
 
-        function deleteCircles(tipo){
-                $("#map").gmap3({
-			clear:{
-				tag:[tipo]
-			}
-		});
-        }
-
-        function deleteMarkers(tipo){
-                $("#map").gmap3({
-			clear:{
-				tag:[tipo]
-			},
-		});
-        }
-
         function deletePosition(){
-            deleteCircles("position");
-            deleteMarkers("position");
+             if (!(typeof circle_position==='undefined' || circle_position===null)){
+                   circle_position.setMap(null); 
+                   marker_position.setMap(null);  
+             } 
         }
 
 
 
         function center_map(lat,lng){
-		$("#map").gmap3('get').setCenter(new google.maps.LatLng(lat, lng));
+console.log("lat:"+lat);
+                map.setCenter(new google.maps.LatLng(lat, lng));
 	}
 
 //**************************cookies******************************
-function savePositionCookies(current_pos){
-	setCookie("lat",current_pos.lat,100);	
-        setCookie("lng",current_pos.lng,100);
-	setCookie("dist",current_pos.dist,100);
-}
+	function savePositionCookies(current_pos){
+		setCookie("lat",current_pos.lat,100);	
+		setCookie("lng",current_pos.lng,100);
+		setCookie("dist",current_pos.dist,100);
+	}
 
-function setCookie(cname, cvalue, exdays) {
-    var d = new Date();
-    d.setTime(d.getTime() + (exdays*24*60*60*1000));
-    var expires = "expires="+d.toUTCString();
-    document.cookie = cname + "=" + cvalue + "; " + expires;
-} 
+	function setCookie(cname, cvalue, exdays) {
+	    var d = new Date();
+	    d.setTime(d.getTime() + (exdays*24*60*60*1000));
+	    var expires = "expires="+d.toUTCString();
+	    document.cookie = cname + "=" + cvalue + "; " + expires;
+	} 
 
 
-function getCookie(cname) {
-    var name = cname + "=";
-    var ca = document.cookie.split(';');
-    for(var i=0; i<ca.length; i++) {
-        var c = ca[i];
-        while (c.charAt(0)==' ') c = c.substring(1);
-        if (c.indexOf(name) == 0) return c.substring(name.length,c.length);
-    }
-    return "";
-} 	
+	function getCookie(cname) {
+	    var name = cname + "=";
+	    var ca = document.cookie.split(';');
+	    for(var i=0; i<ca.length; i++) {
+		var c = ca[i];
+		while (c.charAt(0)==' ') c = c.substring(1);
+		if (c.indexOf(name) == 0) return c.substring(name.length,c.length);
+	    }
+	    return "";
+	} 	
 
 
 //************************Exceptions*****************
 
-function Exception(mensaje) {
-   this.mensaje = mensaje;
-}
+	function Exception(message) {
+	   this.message = message;
+	}
 
 
 

@@ -8,46 +8,43 @@
     <script type="text/javascript" src="/static/gmap3.min.js"></script>
     <script type="text/javascript">
       
-      var websocket,user,lat,lng,dist;
-      var red_icon="http://maps.google.com/mapfiles/ms/icons/red-dot.png";
-      var blue_icon="http://maps.google.com/mapfiles/ms/icons/blue-dot.png";
-
+      var current_pos = new Array();
+      var red_icon="http://maps.google.com/mapfiles/ms/icons/red-dot.png";  
+      var pos_color = "red"; 
+      var init_dist = 10; 
+      var timeout; 
+      var map,marker_position,circle_position;
+ 
       $(document).ready(init);
       
       function init() {
 	  create_map(40,-6);
+	              
+ 	  $(".send_data").bind( "click", sendData);
+          $("#distance_range").change( function() {
+                      $("#distance").text($(this).val()+" km");
+	              current_pos.dist=parseFloat($("#distance_range").val());
+                      send_position(current_pos);
+	              savePositionCookies(current_pos);
+                      draw_position(current_pos);
+          });
+	  
+      };
 
-	  $('#server').val("ws://" + window.location.host + "/websocket");
+
+//****************************websocket***************************
+
+      function make_connection(){
+console.log("make connection");
+         $('#server').val("ws://" + window.location.host + "/websocket");
           if(!("WebSocket" in window)){  
               $('#status').append('<p><span style="color: red;">websockets are not supported </span></p>');
               $("#navigation").hide();  
           } else {
               $('#status').append('<p><span style="color: green;">websockets are supported </span></p>');
               connect();
-	      alert("Esperando para conectar");
-              deleteCircles("red");
-              deleteCircles("blue"); 
-              deleteMarkers(red_icon);
-              deleteMarkers(blue_icon);
-	      select_position();
-	      user=getCookie("user");
-          };
-             // $("#connected").hide(); 	
-             // $("#content").hide(); 	
-
- 	$(".send_data").bind( "click", sendData);
-	$("#distance_range").change(function(){
-		$("#distance").text($(this).val()+" km");
-		dist=parseFloat($("#distance_range").val());
-		alert("changedistance:"+lat+","+lng+","+dist);
-		savePositionCookies(lat,lng,dist);
-		deleteCircles("red");
-              deleteCircles("blue"); 
-              deleteMarkers(red_icon);
-              deleteMarkers(blue_icon);
-		draw_position(lat,lng,dist);
-	});
-      };
+          }; 
+      }   
 
       function connect()
       {
@@ -62,159 +59,27 @@
       
       function disconnect() {
           websocket.close();
-      }; 
-
-      function toggle_connection(){
-          if(websocket.readyState == websocket.OPEN){
-              disconnect();
-          } else {
-              connect();
-          };
-      };
-	
-
-      function send_position(lat,lng,dist){
-	if(websocket.readyState == websocket.OPEN){
-	     json={};
-	     json["position"]={"lat":lat,"lng":lng,"dist":dist};
-	     send_json(json);
-	     showScreen('sending position: ' + JSON.stringify(json));
-	 } else {
-               showScreen('websocket is not connected'); 
-         }
-      };	
-
-      function select_position(){
-	if(navigator.geolocation){
-        //intentamos obtener las coordenadas del usuario
-	navigator.geolocation.getCurrentPosition(function(objPosicion){
-            //almacenamos en variables la longitud y latitud
-	    lng=objPosicion.coords.longitude;
- 	    lat=objPosicion.coords.latitude;
-	    dist=10;
-            if (lat!=NaN){
-	      savePositionCookies(lat,lng,dist);	
-	      draw_position(lat,lng,dist);
- 	      
-            }    
-        },function(objError){
-	    lat = parseFloat(getCookie("lat"));		
- 	    lng = parseFloat(getCookie("lng"));		
- 	    dist = parseFloat(getCookie("dist"));
-	    if ((lat!=NaN) ){
-		draw_position(lat,lng,dist);
-		
-	    }else{
-		alert("Seleccione su posicion");
-	    }	
-            /*//manejamos los errores devueltos por Geolocation API
-            switch(objError.code){
-                //no se pudo obtener la informacion de la ubicacion
-                case objError.POSITION_UNAVAILABLE:
-                    alert('La información de su posición no está disponible.');
-                break;
-                //timeout al intentar obtener las coordenadas
-                case objError.TIMEOUT:
-                    alert('Tiempo de espera agotado.');
-                break;
-                //el usuario no desea mostrar la ubicacion
-                case objError.PERMISSION_DENIED:
-                    alert('Acceso denegado.');
-                break;
-                //errores desconocidos
-                case objError.UNKNOWN_ERROR:
-                    alert('Error desconocido.');
-                break;
-            }*/
-        });
-    }else{
-		alert('Su navegador no soporta Geolocation API de HTML5');
-	}
-      	
-			
-      }
-
-function savePositionCookies(lat,lng,dist){
-	setCookie("lat",lat,100);	
-        setCookie("lng",lng,100);
-	setCookie("dist",dist,100);
-}
-
-function setCookie(cname, cvalue, exdays) {
-    var d = new Date();
-    d.setTime(d.getTime() + (exdays*24*60*60*1000));
-    var expires = "expires="+d.toUTCString();
-    document.cookie = cname + "=" + cvalue + "; " + expires;
-} 
-
-
-function getCookie(cname) {
-    var name = cname + "=";
-    var ca = document.cookie.split(';');
-    for(var i=0; i<ca.length; i++) {
-        var c = ca[i];
-        while (c.charAt(0)==' ') c = c.substring(1);
-        if (c.indexOf(name) == 0) return c.substring(name.length,c.length);
-    }
-    return "";
-} 	
-
-      function send_json(x){
-          websocket.send(JSON.stringify(x));
-      } 
-
-      function sendUser(){ 
-	  if(websocket.readyState == websocket.OPEN){
-              txt = $("#user").val();
-	      send_json({'login':txt});
-	      showScreen('sending user: ' + JSON.stringify({'login':txt})); 
-          } else {
-               showScreen('websocket is not connected'); 
-          };
-      };
-
-     function sendData(){ 
-	  if(websocket.readyState == websocket.OPEN){
-	      key = $(this).parent().attr("id");
-	      if (key.localeCompare("position")==0){
-	        json={};
-		json[key]={"lat":parseFloat($("#lat").val()),"lng":parseFloat($("#lng").val()),"dist":parseFloat($("#distance_range").val())};
-		send_json(json);
-		showScreen('sending user: ' + JSON.stringify(json));
-	      } else {
-		      value = $(this).siblings(":first").val();
-		      json={};
-		      json[key] =value;
-		      send_json(json);
-			setCookie("user",value,100);
-		      showScreen('sending user: ' + JSON.stringify(json)); 
-	      }
-          } else {
-               showScreen('websocket is not connected'); 
-          };
-      };	
-
-      function sendTxt() {
-          if(websocket.readyState == websocket.OPEN){
-              txt = $("#send_txt").val();
-              websocket.send(txt);
-              showScreen('sending: ' + txt); 
-          } else {
-               showScreen('websocket is not connected'); 
-          };
       };
 
       function onOpen(evt) { 
           showScreen('<span style="color: green;">CONNECTED </span>'); 
           $("#connected").fadeIn('slow');
           $("#content").fadeIn('slow');
+          try { 
+            select_position();
+          } catch (excepcion) {
+             console.log("excepcion: "+excepcion.message);  
+          } 
+         
       };  
 
       function onClose(evt) { 
           showScreen('<span style="color: red;">DISCONNECTED </span>');
+          connect();
       };  
 
       function onMessage(evt) { 
+        /*
 	var json = JSON.parse(evt.data); 
 	if ("message" in json) {
               showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
@@ -225,11 +90,11 @@ function getCookie(cname) {
            showScreen('<span style="color: blue;">RESPONSE: ' + evt.data+ '</span>'); 
            senders = json["senders"];
 	   for (var i in senders){
-		//alert("Hola "+json[i].loc.coordinates[0]+","+json[i].loc.coordinates[1]);
+		//console.log("Hola "+json[i].loc.coordinates[0]+","+json[i].loc.coordinates[1]);
 		drawMarker(senders[i].loc.coordinates[1],senders[i].loc.coordinates[0],senders[i].erl_pid,blue_icon);
 		drawCircle(senders[i].loc.coordinates[1],senders[i].loc.coordinates[0],senders[i].dist,"blue")
-	    }
-        }  
+	    }*/
+          
 	
       };  
 
@@ -238,128 +103,262 @@ function getCookie(cname) {
 		
       };
 
+      function sendData(){ 
+	  if(websocket.readyState == websocket.OPEN){
+              key = $(this).parent().attr("id");
+              switch (key){
+                 case "message":
+                     value = $(this).siblings(":first").val();
+		     json={};
+		     json[key] =value;
+		     send_json(json);
+		     showScreen('sending message: ' + JSON.stringify(json)); 
+                     break;
+              }
+          } else {
+               showScreen('websocket is not connected'); 
+          };
+      };
+
+      function send_position(current_pos){
+	if(websocket.readyState == websocket.OPEN){
+	     json={};
+	     json["position"]={"lat":current_pos.lat,"lng":current_pos.lng,"dist":current_pos.dist};
+             
+	     send_json(json);
+	     showScreen('sending position: ' + JSON.stringify(json));
+	 } else {
+               showScreen('websocket is not connected'); 
+         }
+      };
+
+      function send_bounds(bounds){
+        if (current_pos.lng){
+	   if(websocket.readyState == websocket.OPEN){
+	        json={};
+	        json["bounds"]={"lat_NE":bounds.getNorthEast().lat(),"lng_NE":bounds.getNorthEast().lng(),"lat_NE":bounds.getNorthEast().lat(),"lat_SW":bounds.getSouthWest().lat(),"lng_SW":bounds.getSouthWest().lng()};
+                send_json(json);
+	        showScreen('sending bounds: ' + JSON.stringify(json));
+	    } else {
+                  showScreen('websocket is not connected'); 
+            }
+         }
+      };
+
+           
+      function send_json(x){
+          websocket.send(JSON.stringify(x));
+      } 
+
+//************************************interfa*********************
+
+      function change_distance(){
+         $("#distance").text($(this).val()+" km");
+	 current_pos.dist=parseFloat($("#distance_range").val());
+         send_position(current_pos);
+	 savePositionCookies(current_pos);
+         draw_position(current_pos);
+      }
+
+      function select_position(){
+console.log('Entrmos en select position');
+	if(navigator.geolocation){
+        //intentamos obtener las coordenadas del usuario
+	    navigator.geolocation.getCurrentPosition(function(objPosicion){
+            //almacenamos en variables la longitud y latitud
+	    current_pos.lng=objPosicion.coords.longitude;
+ 	    current_pos.lat=objPosicion.coords.latitude;
+	    current_pos.dist=init_dist;
+console.log('Su navegador Geolocation');
+            if (lat!=NaN){
+console.log('tenemos current position:'+current_pos.lat);
+	      savePositionCookies(current_pos);	
+	      draw_position(current_pos);
+              console.log('posicion selecciond:'+current_pos.lat);
+              send_position(current_pos); 
+              change_bounds(); 
+ 	    }  
+             
+        },function(objError){
+console.log('Error en select position');
+            try {
+	       getCookiesPosition();
+               console.log('posicion selecciond:'+current_pos.lat);
+              send_position(current_pos); 
+              change_bounds(); 	
+            } catch (excepcion) {
+               throw excepcion; 
+            }
+            //manejamos los errores devueltos por Geolocation API
+            switch(objError.code){
+                //no se pudo obtener la informacion de la ubicacion
+                case objError.POSITION_UNAVAILABLE:
+                    console.log('La información de su posición no está disponible.');
+                break;
+                //timeout al intentar obtener las coordenadas
+                case objError.TIMEOUT:
+                    console.log('Tiempo de espera agotado.');
+                break;
+                //el usuario no desea mostrar la ubicacion
+                case objError.PERMISSION_DENIED:
+                    console.log('Acceso denegado.');
+                break;
+                //errores desconocidos
+                case objError.UNKNOWN_ERROR:
+                    console.log('Error desconocido.');
+                break;
+            }
+        });
+      }else{
+console.log('Su navegador no soporta Geolocation API de HTML5');
+            try {
+	       getCookiesPosition();	
+               console.log('posicion selecciond:'+current_pos.lat);
+              send_position(current_pos); 
+              change_bounds(); 
+            } catch (excepcion) {
+               throw excepcion; 
+            }
+		//console.log('Su navegador no soporta Geolocation API de HTML5');
+	}
+      }
+
+      function getCookiesPosition(){
+ console.log("getcookiesposition");
+          current_pos.lat = parseFloat(getCookie("lat"));		
+ 	  current_pos.lng = parseFloat(getCookie("lng"));		
+ 	  current_pos.dist = parseFloat(getCookie("dist"));
+	  if ((lat!=NaN) ){
+	    draw_position(current_pos);
+	  }else{
+            miExcepcion = new Exception("Posicion no encontrada: Seleccionela manualmente");
+            throw miExcepcionUsuario;  
+	  }
+      }
+
       function showScreen(txt) { 
           $('#output').prepend('<p>' + txt + '</p>');
       };
 
-      function clearScreen() 
-      { 
-          $('#output').html("");
-      };
 
-      function create_map(lati,long)
-      {
-	 
-	  $("#map").gmap3({
-          map:{
-            options:{
-              center:[lati,long],
+//************************************map************************
+       function create_map(lati,long)
+       {
+          map = new google.maps.Map(document.getElementById('map'), {
+              center: {lat: lati, lng: long},
               zoom: 8
-            },events:{
-              click: function(map,event){
-                 deleteCircles("red");
-              deleteCircles("blue");
-                deleteMarkers(red_icon);
-              deleteMarkers(blue_icon);
-		
-                $("#location").text("Location: Lat: "+event.latLng.lat()+" Lon: "+event.latLng.lng());
-		$("#lat").val(event.latLng.lat());
-		$("#lng").val(event.latLng.lng());
-		lat=event.latLng.lat();
-		lng=event.latLng.lng();
-		dist=parseFloat($("#distance_range").val());
-		savePositionCookies(lat,lng,dist);
-                draw_position(lat,lng,dist);
-		
-              }
-            }
-          }
-        });
+          });
 
-  }
 
-function drawMarker(lat,lng,user,icono){
-		$("#map").gmap3({
-				marker:{
-					latLng:[lat,lng],
-					tag:icono,
-					events:{
-					  click:function(){
-					    alert(user);
-					  }
-					},
-					options:{
-						draggable:true,
-						icon: icono
-					}
-				}
-		});
+          map.addListener('click', function(e) {
+             select_map_position(e.latLng.lat(),e.latLng.lng());
+          });
+
+          map.addListener('bounds_changed', function(event) {
+             window.clearTimeout(timeout);
+             timeout = window.setTimeout(function () {
+console.log("bounds_chnged:");
+             send_bounds(map.getBounds());
+             }, 500); 
+          });
+
+          google.maps.event.addListenerOnce(map, 'tilesloaded', make_connection());
+
+          
+       }
+       
+       function change_bounds(){
+           send_bounds(map.getBounds());
+       }
+ 
+       function select_map_position(lat,lng){
+            $("#location").text("Location: Lat: "+lat+" Lon: "+lng);
+		$("#lat").val(lat);
+		$("#lng").val(lng);
+		current_pos.lat=lat;
+		current_pos.lng=lng;
+		current_pos.dist=parseFloat($("#distance_range").val());
+		savePositionCookies(current_pos);
+                draw_position(current_pos);
+		send_position(current_pos);
+        } 
+
+	function draw_position(current_pos){
+                deletePosition();
+		drawCircle(current_pos,pos_color);
+                drawMarker(current_pos.lat,current_pos.lng,red_icon)
+		center_map(current_pos.lat,current_pos.lng);
 	}
 
-	function deleteCircles(color){
-                $("#map").gmap3({
-			clear:{
-				tag:[color]
-			}
-		});
+        function drawMarker(lat,lng,icono){
+               marker_position = new google.maps.Marker({
+                  position:  {lat: lat, lng: lng},
+                  map: map,
+                  icon: icono
+               });
         }
 
-        function deleteMarkers(icono){
-                $("#map").gmap3({
-			clear:{
-				tag:[icono]
-			},
-		});
+        function drawCircle(current_pos,color){
+                circle_position = new google.maps.Circle({
+                   strokeColor: color,
+                   strokeOpacity: 0.8,
+                   strokeWeight: 2,
+                   fillColor: color,
+                   fillOpacity: 0.35,
+                   map: map,
+                   center: new google.maps.LatLng(current_pos.lat,current_pos.lng),
+                   radius: parseFloat(current_pos.dist)*1000
+                });
+	}
+
+        function deletePosition(){
+             if (!(typeof circle_position==='undefined' || circle_position===null)){
+                   circle_position.setMap(null); 
+                   marker_position.setMap(null);  
+             } 
         }
 
-	function drawCircle(lat,lng,rad,color){
-		$("#map").gmap3({
-			circle:{
-			        options:{
-				    center: [lat,lng],
-				    radius : parseFloat(rad)*1000,
-				    fillColor : color,
-				    strokeColor : color
-				  },
-				  tag: color
-				},
-		});
-		/*Circle = new google.maps.Circle({
-			map:$("#map").gmap3('get'),
-			tag:["circle"],
-			center: {lat:lat, lng:lng},
-			radius : parseFloat(rad)*1000,	
-			fillColor : color,
-      			strokeColor : color
-				
-		});*/
-		/*$("#map").gmap3({
-				clear:{
-					tag:["color"]
-				},
-				circle:{
-					tag:"color",
-					options:{
-						center: [lat, lng],
-      						radius : parseFloat(rad)*1000,
-						fillColor : color,
-      						strokeColor : color
-					}
-				}
-		});*/
+
+
+        function center_map(lat,lng){
+console.log("lat:"+lat);
+                map.setCenter(new google.maps.LatLng(lat, lng));
 	}
 
-	function center_map(lat,lng){
-		$("#map").gmap3('get').setCenter(new google.maps.LatLng(lat, lng));
+//**************************cookies******************************
+	function savePositionCookies(current_pos){
+		setCookie("lat",current_pos.lat,100);	
+		setCookie("lng",current_pos.lng,100);
+		setCookie("dist",current_pos.dist,100);
 	}
 
-	function draw_position(lat,lng,dist){
-		if (dist==""){dist=10;}
-		send_position(lat,lng,dist);
-		drawMarker(lat,lng,user,red_icon);
-		drawCircle(lat,lng,dist,"red");
-		center_map(lat,lng);
+	function setCookie(cname, cvalue, exdays) {
+	    var d = new Date();
+	    d.setTime(d.getTime() + (exdays*24*60*60*1000));
+	    var expires = "expires="+d.toUTCString();
+	    document.cookie = cname + "=" + cvalue + "; " + expires;
+	} 
+
+
+	function getCookie(cname) {
+	    var name = cname + "=";
+	    var ca = document.cookie.split(';');
+	    for(var i=0; i<ca.length; i++) {
+		var c = ca[i];
+		while (c.charAt(0)==' ') c = c.substring(1);
+		if (c.indexOf(name) == 0) return c.substring(name.length,c.length);
+	    }
+	    return "";
+	} 	
+
+
+//************************Exceptions*****************
+
+	function Exception(message) {
+	   this.message = message;
 	}
+
+
 
     </script>
   </head>
